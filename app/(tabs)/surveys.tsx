@@ -1,36 +1,34 @@
-import { ScrollView, Text, View, TouchableOpacity, FlatList, TextInput, RefreshControl } from 'react-native';
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
+import { ScrollView, Text, View, Pressable, FlatList, ActivityIndicator, TextInput } from 'react-native';
 import { ScreenContainer } from '@/components/screen-container';
 import { NeonCard } from '@/components/neon-card';
-import { mockSurveys } from '@/lib/mock-data';
-import type { Survey } from '@/lib/types';
+import { trpc } from '@/lib/trpc';
 
 type SortOption = 'reward-high' | 'reward-low' | 'time-short' | 'time-long' | 'newest';
 
 export default function SurveysScreen() {
+  const { data: surveys, isLoading, refetch } = trpc.surveys.list.useQuery();
+  const completeMutation = trpc.surveys.complete.useMutation({
+    onSuccess: () => refetch(),
+  });
+
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>('reward-high');
-  const [refreshing, setRefreshing] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
 
   const categories = ['All', 'General', 'Technology', 'Shopping', 'Health', 'Entertainment'];
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 1000);
-  };
-
   // Filter and sort surveys
   const filteredSurveys = useMemo(() => {
-    let results = mockSurveys;
+    let results = surveys || [];
 
     // Filter by search query
     if (searchQuery) {
       results = results.filter(
         (survey) =>
           survey.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          survey.description.toLowerCase().includes(searchQuery.toLowerCase())
+          survey.description?.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
@@ -43,10 +41,10 @@ export default function SurveysScreen() {
     const sorted = [...results];
     switch (sortBy) {
       case 'reward-high':
-        sorted.sort((a, b) => b.reward - a.reward);
+        sorted.sort((a, b) => parseFloat(b.reward) - parseFloat(a.reward));
         break;
       case 'reward-low':
-        sorted.sort((a, b) => a.reward - b.reward);
+        sorted.sort((a, b) => parseFloat(a.reward) - parseFloat(b.reward));
         break;
       case 'time-short':
         sorted.sort((a, b) => a.estimatedTime - b.estimatedTime);
@@ -55,190 +53,146 @@ export default function SurveysScreen() {
         sorted.sort((a, b) => b.estimatedTime - a.estimatedTime);
         break;
       case 'newest':
-        // Assume newer surveys are at the end of the array
         sorted.reverse();
         break;
     }
 
     return sorted;
-  }, [searchQuery, selectedCategory, sortBy]);
+  }, [surveys, searchQuery, selectedCategory, sortBy]);
+
+  const handleCompleteSurvey = async (surveyId: number) => {
+    try {
+      await completeMutation.mutateAsync({ surveyId });
+    } catch (error) {
+      console.error('Failed to complete survey:', error);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <ScreenContainer className="p-6 items-center justify-center">
+        <ActivityIndicator size="large" color="#00D9FF" />
+      </ScreenContainer>
+    );
+  }
 
   return (
     <ScreenContainer className="p-0 bg-background">
-      <ScrollView
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        contentContainerStyle={{ flexGrow: 1 }}
-        className="bg-background"
-      >
+      <ScrollView contentContainerStyle={{ flexGrow: 1 }} className="bg-background">
         {/* Header */}
         <View className="bg-gradient-to-b from-primary/10 to-transparent px-6 py-6 border-b border-border">
-          <Text className="text-sm text-muted mb-2">Available Surveys</Text>
-          <Text className="text-3xl font-bold text-foreground">Earn Cash</Text>
-          <Text className="text-xs text-muted mt-1">{filteredSurveys.length} surveys available</Text>
+          <Text className="text-2xl font-bold text-foreground mb-4">Available Surveys</Text>
+          <TextInput
+            placeholder="Search surveys..."
+            placeholderTextColor="#687076"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            className="bg-surface border border-border rounded-lg px-4 py-3 text-foreground"
+          />
         </View>
 
-        {/* Search Bar */}
-        <View className="px-6 py-4 gap-3">
-          <View className="flex-row gap-2 items-center">
-            <View className="flex-1 bg-surface border border-border rounded-lg px-4 py-3 flex-row items-center gap-2">
-              <Text className="text-primary text-lg">🔍</Text>
-              <TextInput
-                placeholder="Search surveys..."
-                placeholderTextColor="#8892B0"
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                className="flex-1 text-foreground text-sm"
-              />
-            </View>
-            <TouchableOpacity
-              onPress={() => setShowFilters(!showFilters)}
-              className="bg-surface border border-border rounded-lg p-3"
+        {/* Category Filter */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          className="px-6 py-4"
+          contentContainerStyle={{ gap: 8 }}
+        >
+          {categories.map((category) => (
+            <Pressable
+              key={category}
+              onPress={() => setSelectedCategory(category === 'All' ? null : category)}
+              style={({ pressed }) => [
+                {
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ]}
             >
-              <Text className="text-primary text-lg">⚙️</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Filter Panel */}
-          {showFilters && (
-            <View className="bg-surface border border-border rounded-lg p-4 gap-3">
-              {/* Sort Options */}
-              <View>
-                <Text className="text-xs text-primary font-bold mb-2 uppercase">Sort By</Text>
-                <View className="flex-row flex-wrap gap-2">
-                  {[
-                    { id: 'reward-high', label: 'Highest Reward' },
-                    { id: 'reward-low', label: 'Lowest Reward' },
-                    { id: 'time-short', label: 'Quickest' },
-                    { id: 'time-long', label: 'Longest' },
-                  ].map((option) => (
-                    <TouchableOpacity
-                      key={option.id}
-                      onPress={() => setSortBy(option.id as SortOption)}
-                      className={`px-3 py-2 rounded-lg border ${
-                        sortBy === option.id
-                          ? 'bg-primary border-primary'
-                          : 'bg-transparent border-border'
-                      }`}
-                    >
-                      <Text
-                        className={`text-xs font-semibold ${
-                          sortBy === option.id ? 'text-background' : 'text-foreground'
-                        }`}
-                      >
-                        {option.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+              <View
+                className={`px-4 py-2 rounded-full border ${
+                  (selectedCategory === category || (category === 'All' && !selectedCategory))
+                    ? 'bg-primary border-primary'
+                    : 'bg-surface border-border'
+                }`}
+              >
+                <Text
+                  className={`font-semibold ${
+                    (selectedCategory === category || (category === 'All' && !selectedCategory))
+                      ? 'text-background'
+                      : 'text-foreground'
+                  }`}
+                >
+                  {category}
+                </Text>
               </View>
+            </Pressable>
+          ))}
+        </ScrollView>
 
-              {/* Category Filter */}
-              <View>
-                <Text className="text-xs text-primary font-bold mb-2 uppercase">Category</Text>
-                <View className="flex-row flex-wrap gap-2">
-                  {categories.map((category) => (
-                    <TouchableOpacity
-                      key={category}
-                      onPress={() =>
-                        setSelectedCategory(category === 'All' ? null : category)
-                      }
-                      className={`px-3 py-2 rounded-lg border ${
-                        (category === 'All' && !selectedCategory) ||
-                        selectedCategory === category
-                          ? 'bg-primary border-primary'
-                          : 'bg-transparent border-border'
-                      }`}
-                    >
-                      <Text
-                        className={`text-xs font-semibold ${
-                          (category === 'All' && !selectedCategory) ||
-                          selectedCategory === category
-                            ? 'text-background'
-                            : 'text-foreground'
-                        }`}
-                      >
-                        {category}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+        {/* Sort Options */}
+        <View className="px-6 py-4 flex-row gap-2 flex-wrap">
+          {(['reward-high', 'reward-low', 'time-short'] as SortOption[]).map((option) => (
+            <Pressable
+              key={option}
+              onPress={() => setSortBy(option)}
+              style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+            >
+              <View
+                className={`px-3 py-1 rounded-full ${
+                  sortBy === option ? 'bg-primary' : 'bg-surface border border-border'
+                }`}
+              >
+                <Text className={`text-xs font-semibold ${sortBy === option ? 'text-background' : 'text-foreground'}`}>
+                  {option === 'reward-high' && '💰 High Pay'}
+                  {option === 'reward-low' && '💵 Low Pay'}
+                  {option === 'time-short' && '⚡ Quick'}
+                </Text>
               </View>
-            </View>
-          )}
+            </Pressable>
+          ))}
         </View>
 
         {/* Surveys List */}
-        <View className="px-6 pb-6">
+        <View className="px-6 py-4 gap-3 pb-8">
           {filteredSurveys.length > 0 ? (
-            <FlatList
-              scrollEnabled={false}
-              data={filteredSurveys}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  className="mb-3"
+            filteredSurveys.map((survey) => (
+              <NeonCard key={survey.id} className="p-4 gap-3">
+                <View className="flex-row justify-between items-start">
+                  <View className="flex-1">
+                    <Text className="text-base font-bold text-foreground">{survey.title}</Text>
+                    <Text className="text-xs text-muted mt-1">{survey.description}</Text>
+                  </View>
+                  <Text className="text-lg font-bold text-success">${survey.reward}</Text>
+                </View>
+
+                <View className="flex-row gap-4 items-center">
+                  <View className="flex-row gap-1 items-center">
+                    <Text className="text-xs text-muted">⏱️</Text>
+                    <Text className="text-xs text-muted">{survey.estimatedTime} min</Text>
+                  </View>
+                  <View className="flex-row gap-1 items-center">
+                    <Text className="text-xs text-muted">📋</Text>
+                    <Text className="text-xs text-muted">{survey.questions} questions</Text>
+                  </View>
+                </View>
+
+                <Pressable
+                  onPress={() => handleCompleteSurvey(survey.id)}
+                  disabled={completeMutation.isPending}
+                  style={({ pressed }) => [{ opacity: pressed ? 0.8 : 1 }]}
                 >
-                  <NeonCard className="bg-surface border-border">
-                    <View className="flex-row justify-between items-start mb-3">
-                      <View className="flex-1 pr-3">
-                        <Text className="text-base font-bold text-foreground">
-                          {item.title}
-                        </Text>
-                        <Text className="text-xs text-muted mt-1">
-                          {item.description}
-                        </Text>
-                      </View>
-                      <View className="bg-primary/20 rounded-lg px-3 py-2">
-                        <Text className="text-lg font-bold text-success">
-                          ${item.reward.toFixed(2)}
-                        </Text>
-                      </View>
-                    </View>
-
-                    {/* Progress Bar */}
-                    <View className="w-full bg-border rounded-full h-1.5 mb-3 overflow-hidden">
-                      <View
-                        className="bg-primary h-1.5 rounded-full"
-                        style={{ width: `${item.completionPercentage}%` }}
-                      />
-                    </View>
-
-                    {/* Meta Info */}
-                    <View className="flex-row justify-between items-center">
-                      <View className="flex-row gap-3">
-                        <View className="flex-row items-center gap-1">
-                          <Text className="text-xs text-muted">⏱</Text>
-                          <Text className="text-xs text-muted">
-                            {item.estimatedTime} min
-                          </Text>
-                        </View>
-                        <View className="flex-row items-center gap-1">
-                          <Text className="text-xs text-muted">📁</Text>
-                          <Text className="text-xs text-muted">{item.category}</Text>
-                        </View>
-                      </View>
-                      <TouchableOpacity className="bg-primary rounded-lg px-4 py-2">
-                        <Text className="text-xs font-bold text-background">Start</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </NeonCard>
-                </TouchableOpacity>
-              )}
-            />
+                  <View className="bg-primary rounded-lg py-2 px-4 items-center">
+                    <Text className="text-background font-bold">
+                      {completeMutation.isPending ? 'Starting...' : 'Start Survey'}
+                    </Text>
+                  </View>
+                </Pressable>
+              </NeonCard>
+            ))
           ) : (
-            <View className="items-center justify-center py-12">
-              <Text className="text-4xl mb-3">🔍</Text>
-              <Text className="text-foreground font-semibold mb-1">No surveys found</Text>
-              <Text className="text-muted text-sm text-center">
-                Try adjusting your filters or search query
-              </Text>
-            </View>
+            <Text className="text-muted text-center py-8">No surveys available</Text>
           )}
         </View>
-
-        {/* Bottom spacing */}
-        <View className="h-4" />
       </ScrollView>
     </ScreenContainer>
   );
