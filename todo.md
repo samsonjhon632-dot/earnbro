@@ -22,8 +22,11 @@
 ### Refer Page
 - [x] Referral code display
 - [x] Share referral functionality
-- [x] Referral stats display
+- [x] Referral stats display (total, active, earnings, pending)
 - [x] How it works section
+- [x] Referral tier system (Bronze/Silver/Gold)
+- [x] Tiered bonus structure
+- [x] Copy referral code functionality
 
 ### Wallet/Rewards Screen
 - [x] Display current balance
@@ -48,9 +51,9 @@
 - [x] Search surveys
 - [x] Sort surveys (highest reward, quickest, etc.)
 - [x] Category filtering
-- [ ] Survey detail screen
-- [ ] Start survey flow
-- [ ] Survey completion tracking
+- [x] Survey detail screen with requirements
+- [x] Start survey flow
+- [x] Survey completion tracking with rewards
 
 ### Offers Screen
 - [x] Fetch and display available offers
@@ -64,10 +67,11 @@
 - [ ] Track claimed offers
 
 ### Games Screen
-- [ ] Display available games
-- [ ] Simple game implementation (e.g., scratch-off, daily trivia)
-- [ ] Track game earnings
-- [ ] Game completion rewards
+- [x] Display available games (Scratch, Spin, Trivia)
+- [x] Simple game implementation (scratch-off, spin wheel, daily trivia)
+- [x] Track game earnings and daily limits
+- [x] Game completion rewards with instant notifications
+- [x] Daily bonus tracking system
 
 ### Notifications
 - [ ] Push notification setup
@@ -94,11 +98,18 @@
 - [ ] Local caching of task data
 
 ## Testing
+- [x] Manual testing of all auth flows
+- [x] Manual testing of survey/offer completion
+- [x] Manual testing of game mechanics
+- [x] Manual testing of referral system
 - [ ] Unit tests for core functions
 - [ ] Integration tests for user flows
 - [ ] End-to-end testing of main features
 
-## Deployment
-- [ ] Generate APK for Android
-- [ ] Generate IPA for iOS
-- [ ] App store submission preparation
+## Distribution & Download
+- [x] Setup direct download via Expo Go
+- [x] Web version accessible via browser
+- [x] Create download guide with instructions
+- [ ] Generate standalone APK for Android
+- [ ] Generate standalone IPA for iOS
+- [ ] Setup direct download links
