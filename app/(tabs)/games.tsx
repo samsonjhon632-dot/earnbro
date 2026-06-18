@@ -1,217 +1,208 @@
-import { ScrollView, Text, View, TouchableOpacity, FlatList, RefreshControl } from 'react-native';
-import { useState } from 'react';
+import React, { useState } from 'react';
+import { ScrollView, Text, View, Pressable, Alert, ActivityIndicator } from 'react-native';
 import { ScreenContainer } from '@/components/screen-container';
-import { NeonCard } from '@/components/neon-card';
-import { useAuth } from '@/lib/auth-context';
+import { FuturisticCard } from '@/components/futuristic-card';
+
+interface GameStats {
+  played: number;
+  won: number;
+  earned: number;
+}
 
 interface Game {
   id: string;
-  title: string;
+  name: string;
   description: string;
-  reward: number;
-  icon: string;
-  type: 'scratch' | 'spin' | 'trivia';
+  maxReward: number;
   dailyLimit: number;
-  playsRemaining: number;
+  icon: string;
+  color: 'cyan' | 'purple' | 'pink' | 'blue' | 'green';
 }
 
+const GAMES: Game[] = [
+  {
+    id: 'scratch',
+    name: 'Scratch Card',
+    description: 'Scratch and reveal prizes instantly',
+    maxReward: 1.0,
+    dailyLimit: 5,
+    icon: '🎟️',
+    color: 'cyan',
+  },
+  {
+    id: 'spin',
+    name: 'Spin Wheel',
+    description: 'Spin the wheel and win cash prizes',
+    maxReward: 2.0,
+    dailyLimit: 3,
+    icon: '🎡',
+    color: 'purple',
+  },
+  {
+    id: 'trivia',
+    name: 'Daily Trivia',
+    description: 'Answer questions and earn rewards',
+    maxReward: 0.5,
+    dailyLimit: 10,
+    icon: '🧠',
+    color: 'pink',
+  },
+  {
+    id: 'memory',
+    name: 'Memory Match',
+    description: 'Match pairs and win prizes',
+    maxReward: 1.5,
+    dailyLimit: 4,
+    icon: '🎮',
+    color: 'blue',
+  },
+];
+
 export default function GamesScreen() {
-  const { user } = useAuth();
-  const [refreshing, setRefreshing] = useState(false);
-  const [selectedGame, setSelectedGame] = useState<Game | null>(null);
-  const [gameResult, setGameResult] = useState<{ won: boolean; amount: number } | null>(null);
+  const [gameStats, setGameStats] = useState<Record<string, GameStats>>({
+    scratch: { played: 2, won: 1, earned: 0.5 },
+    spin: { played: 1, won: 1, earned: 1.25 },
+    trivia: { played: 5, won: 4, earned: 2.0 },
+    memory: { played: 0, won: 0, earned: 0 },
+  });
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playingGameId, setPlayingGameId] = useState<string | null>(null);
 
-  const games: Game[] = [
-    {
-      id: '1',
-      title: 'Lucky Scratch',
-      description: 'Scratch off cards to reveal instant prizes',
-      reward: 2.5,
-      icon: '🎫',
-      type: 'scratch',
-      dailyLimit: 5,
-      playsRemaining: 3,
-    },
-    {
-      id: '2',
-      title: 'Spin & Win',
-      description: 'Spin the wheel for a chance to win big',
-      reward: 5.0,
-      icon: '🎡',
-      type: 'spin',
-      dailyLimit: 3,
-      playsRemaining: 2,
-    },
-    {
-      id: '3',
-      title: 'Daily Trivia',
-      description: 'Answer trivia questions to earn rewards',
-      reward: 1.5,
-      icon: '🧠',
-      type: 'trivia',
-      dailyLimit: 10,
-      playsRemaining: 7,
-    },
-  ];
+  const handlePlayGame = async (gameId: string) => {
+    setIsPlaying(true);
+    setPlayingGameId(gameId);
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 1000);
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    const won = Math.random() > 0.4;
+    const reward = won ? Math.random() * 2 : 0;
+
+    setGameStats((prev) => ({
+      ...prev,
+      [gameId]: {
+        played: prev[gameId].played + 1,
+        won: prev[gameId].won + (won ? 1 : 0),
+        earned: prev[gameId].earned + reward,
+      },
+    }));
+
+    setIsPlaying(false);
+    setPlayingGameId(null);
+
+    if (won) {
+      Alert.alert('You Won!', `You earned $${reward.toFixed(2)}!`, [
+        {
+          text: 'Play Again',
+          onPress: () => handlePlayGame(gameId),
+        },
+        {
+          text: 'OK',
+        },
+      ]);
+    } else {
+      Alert.alert('Try Again', 'Better luck next time!', [
+        {
+          text: 'Play Again',
+          onPress: () => handlePlayGame(gameId),
+        },
+        {
+          text: 'OK',
+        },
+      ]);
+    }
   };
 
-  const playGame = (game: Game) => {
-    setSelectedGame(game);
-    // Simulate game result (70% win rate)
-    const won = Math.random() < 0.7;
-    const amount = won ? game.reward : 0;
-    setGameResult({ won, amount });
-  };
-
-  const closeGameResult = () => {
-    setGameResult(null);
-    setSelectedGame(null);
-  };
-
-  if (selectedGame && gameResult) {
-    return (
-      <ScreenContainer className="p-6 bg-background items-center justify-center">
-        <View className="items-center gap-6 bg-surface border border-border rounded-2xl p-8">
-          <Text className="text-7xl">
-            {gameResult.won ? '🎉' : '😅'}
-          </Text>
-          <Text className="text-3xl font-bold text-foreground text-center">
-            {gameResult.won ? 'You Won!' : 'Better Luck Next Time'}
-          </Text>
-          {gameResult.won && (
-            <View className="bg-success/20 border border-success rounded-lg px-6 py-3">
-              <Text className="text-2xl font-bold text-success">
-                +${gameResult.amount.toFixed(2)}
-              </Text>
-            </View>
-          )}
-          <TouchableOpacity
-            onPress={closeGameResult}
-            className="bg-primary rounded-lg py-3 px-8 w-full items-center"
-          >
-            <Text className="text-background font-bold">Play Again</Text>
-          </TouchableOpacity>
-        </View>
-      </ScreenContainer>
-    );
-  }
+  const totalEarned = Object.values(gameStats).reduce((sum, stat) => sum + stat.earned, 0);
+  const totalPlayed = Object.values(gameStats).reduce((sum, stat) => sum + stat.played, 0);
+  const totalWon = Object.values(gameStats).reduce((sum, stat) => sum + stat.won, 0);
 
   return (
     <ScreenContainer className="p-0 bg-background">
-      <ScrollView
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        contentContainerStyle={{ flexGrow: 1 }}
-        className="bg-background"
-      >
+      <ScrollView contentContainerStyle={{ flexGrow: 1 }} className="bg-background">
         {/* Header */}
-        <View className="bg-gradient-to-b from-primary/10 to-transparent px-6 py-6 border-b border-border">
-          <Text className="text-sm text-muted mb-2">Have Fun</Text>
-          <Text className="text-3xl font-bold text-foreground">Play & Earn</Text>
-          <Text className="text-xs text-muted mt-1">
-            Play daily games and win instant rewards
-          </Text>
+        <View className="px-6 py-6 gap-4">
+          <View className="flex-row justify-between items-center">
+            <View>
+              <Text className="text-sm text-muted">Games</Text>
+              <Text className="text-2xl font-bold text-foreground">Play & Earn</Text>
+            </View>
+            <Text className="text-3xl">🎮</Text>
+          </View>
+
+          {/* Stats Cards */}
+          <View className="flex-row gap-3">
+            <FuturisticCard className="flex-1 p-3 gap-1" gradient="cyan">
+              <Text className="text-xs text-muted">Total Earned</Text>
+              <Text className="text-xl font-bold text-success">${totalEarned.toFixed(2)}</Text>
+            </FuturisticCard>
+            <FuturisticCard className="flex-1 p-3 gap-1" gradient="purple">
+              <Text className="text-xs text-muted">Games Played</Text>
+              <Text className="text-xl font-bold text-primary">{totalPlayed}</Text>
+            </FuturisticCard>
+            <FuturisticCard className="flex-1 p-3 gap-1" gradient="pink">
+              <Text className="text-xs text-muted">Win Rate</Text>
+              <Text className="text-xl font-bold text-warning">
+                {totalPlayed > 0 ? ((totalWon / totalPlayed) * 100).toFixed(0) : 0}%
+              </Text>
+            </FuturisticCard>
+          </View>
+        </View>
+
+        {/* Games Grid */}
+        <View className="px-6 py-4 gap-3 pb-8">
+          {GAMES.map((game) => {
+            const stats = gameStats[game.id];
+            const remaining = game.dailyLimit - stats.played;
+
+            return (
+              <Pressable
+                key={game.id}
+                onPress={() => handlePlayGame(game.id)}
+                disabled={isPlaying || remaining <= 0}
+                style={({ pressed }) => [{ opacity: pressed ? 0.8 : 1 }]}
+              >
+                <FuturisticCard className="p-4 gap-3 flex-row items-center" gradient={game.color}>
+                  <Text className="text-3xl">{game.icon}</Text>
+                  <View className="flex-1 gap-1">
+                    <Text className="text-sm font-bold text-foreground">{game.name}</Text>
+                    <Text className="text-xs text-muted">{game.description}</Text>
+                    <View className="flex-row gap-2 mt-1">
+                      <Text className="text-xs text-success">Max: ${game.maxReward.toFixed(2)}</Text>
+                      <Text className="text-xs text-muted">•</Text>
+                      <Text className={`text-xs ${remaining > 0 ? 'text-primary' : 'text-error'}`}>
+                        {remaining}/{game.dailyLimit} left
+                      </Text>
+                    </View>
+                  </View>
+                  <View className="items-end gap-1">
+                    <Text className="text-xs text-muted">Earned</Text>
+                    <Text className="text-base font-bold text-success">${stats.earned.toFixed(2)}</Text>
+                    {isPlaying && playingGameId === game.id && (
+                      <ActivityIndicator size="small" color="#00D9FF" />
+                    )}
+                  </View>
+                </FuturisticCard>
+              </Pressable>
+            );
+          })}
         </View>
 
         {/* Daily Bonus */}
-        <View className="px-6 py-4">
-          <NeonCard className="bg-gradient-to-r from-primary/20 to-primary/10 border-primary">
-            <View className="flex-row items-center gap-3">
-              <Text className="text-4xl">🎁</Text>
-              <View className="flex-1">
-                <Text className="text-sm font-bold text-primary">Daily Bonus</Text>
-                <Text className="text-xs text-muted mt-1">
-                  Play 3 games today to unlock $1 bonus
-                </Text>
+        <View className="px-6 pb-8">
+          <FuturisticCard className="p-4 gap-2" gradient="green">
+            <View className="flex-row items-center justify-between">
+              <View className="gap-1">
+                <Text className="text-sm font-bold text-foreground">Daily Bonus</Text>
+                <Text className="text-xs text-muted">Play all games today to unlock</Text>
               </View>
-              <Text className="text-2xl">2/3</Text>
+              <Text className="text-2xl font-bold text-success">$5.00</Text>
             </View>
-          </NeonCard>
+            <View className="h-2 bg-surface/50 rounded-full overflow-hidden mt-2">
+              <View className="h-full bg-gradient-to-r from-green-500 to-emerald-500" style={{ width: '60%' }} />
+            </View>
+            <Text className="text-xs text-muted mt-1">3 of 4 games played</Text>
+          </FuturisticCard>
         </View>
-
-        {/* Games List */}
-        <View className="px-6 pb-6">
-          <FlatList
-            scrollEnabled={false}
-            data={games}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                onPress={() => playGame(item)}
-                disabled={item.playsRemaining === 0}
-                className="mb-3"
-              >
-                <NeonCard
-                  className={`bg-surface border-border ${
-                    item.playsRemaining === 0 ? 'opacity-50' : ''
-                  }`}
-                >
-                  <View className="flex-row justify-between items-start mb-3">
-                    <View className="flex-row items-center gap-3 flex-1">
-                      <Text className="text-4xl">{item.icon}</Text>
-                      <View className="flex-1">
-                        <Text className="text-base font-bold text-foreground">
-                          {item.title}
-                        </Text>
-                        <Text className="text-xs text-muted mt-1">
-                          {item.description}
-                        </Text>
-                      </View>
-                    </View>
-                    <View className="bg-success/20 rounded-lg px-3 py-2">
-                      <Text className="text-lg font-bold text-success">
-                        ${item.reward.toFixed(2)}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* Game Stats */}
-                  <View className="flex-row justify-between items-center">
-                    <View className="flex-row gap-3">
-                      <View className="flex-row items-center gap-1">
-                        <Text className="text-xs text-muted">📊</Text>
-                        <Text className="text-xs text-muted">
-                          {item.dailyLimit} daily
-                        </Text>
-                      </View>
-                      <View className="flex-row items-center gap-1">
-                        <Text className="text-xs text-muted">⏱</Text>
-                        <Text className="text-xs text-muted">
-                          {item.playsRemaining} left
-                        </Text>
-                      </View>
-                    </View>
-                    <TouchableOpacity
-                      onPress={() => playGame(item)}
-                      disabled={item.playsRemaining === 0}
-                      className={`rounded-lg px-4 py-2 ${
-                        item.playsRemaining === 0
-                          ? 'bg-muted'
-                          : 'bg-primary'
-                      }`}
-                    >
-                      <Text
-                        className={`text-xs font-bold ${
-                          item.playsRemaining === 0
-                            ? 'text-foreground'
-                            : 'text-background'
-                        }`}
-                      >
-                        {item.playsRemaining === 0 ? 'No Plays' : 'Play Now'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </NeonCard>
-              </TouchableOpacity>
-            )}
-          />
-        </View>
-
-        {/* Bottom spacing */}
-        <View className="h-4" />
       </ScrollView>
     </ScreenContainer>
   );
