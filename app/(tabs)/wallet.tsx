@@ -1,90 +1,55 @@
-import React, { useState } from 'react';
-import { ScrollView, Text, View, Pressable, Alert, FlatList, Modal, TextInput } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { ScrollView, Text, View, Pressable, Alert, FlatList, Modal, TextInput, ActivityIndicator } from 'react-native';
 import { ScreenContainer } from '@/components/screen-container';
 import { FuturisticCard } from '@/components/futuristic-card';
+import { trpc } from '@/lib/trpc';
+import { useAuth } from '@/hooks/use-auth';
 
 interface Transaction {
-  id: string;
-  type: 'earned' | 'withdrawn' | 'bonus' | 'referral';
-  amount: number;
+  id: number;
+  type: string;
+  amount: string;
   description: string;
-  date: string;
-  status: 'completed' | 'pending' | 'failed';
-  icon: string;
+  status: string;
+  createdAt: string;
 }
 
-const TRANSACTIONS: Transaction[] = [
-  {
-    id: '1',
-    type: 'earned',
-    amount: 2.5,
-    description: 'Completed DoorDash Offer',
-    date: 'Today',
-    status: 'completed',
-    icon: '🍔',
-  },
-  {
-    id: '2',
-    type: 'bonus',
-    amount: 5.0,
-    description: 'Daily Bonus',
-    date: 'Today',
-    status: 'completed',
-    icon: '🎁',
-  },
-  {
-    id: '3',
-    type: 'referral',
-    amount: 3.0,
-    description: 'Friend Signup Bonus',
-    date: 'Yesterday',
-    status: 'completed',
-    icon: '👥',
-  },
-  {
-    id: '4',
-    type: 'withdrawn',
-    amount: 20.0,
-    description: 'PayPal Withdrawal',
-    date: '2 days ago',
-    status: 'completed',
-    icon: '💸',
-  },
-  {
-    id: '5',
-    type: 'earned',
-    amount: 1.5,
-    description: 'Video Watch Reward',
-    date: '3 days ago',
-    status: 'completed',
-    icon: '🎬',
-  },
-];
-
 export default function WalletScreen() {
+  const { isAuthenticated } = useAuth();
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'earned' | 'withdrawn' | 'bonus' | 'referral'>('all');
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [withdrawMethod, setWithdrawMethod] = useState<'paypal' | 'giftcard' | 'bank'>('paypal');
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
 
-  const filteredTransactions = selectedFilter === 'all' 
-    ? TRANSACTIONS 
-    : TRANSACTIONS.filter(t => t.type === selectedFilter);
+  // Fetch wallet balance
+  const walletQuery = trpc.wallet.getBalance.useQuery(undefined, {
+    enabled: isAuthenticated,
+    refetchInterval: 5000,
+  });
 
-  const totalEarned = TRANSACTIONS
-    .filter(t => t.status === 'completed' && (t.type === 'earned' || t.type === 'bonus' || t.type === 'referral'))
-    .reduce((sum, t) => sum + t.amount, 0);
+  // Fetch transactions
+  const transactionsQuery = trpc.transactions.list.useQuery(undefined, {
+    enabled: isAuthenticated,
+    refetchInterval: 5000,
+  });
 
-  const totalWithdrawn = TRANSACTIONS
-    .filter(t => t.status === 'completed' && t.type === 'withdrawn')
-    .reduce((sum, t) => sum + t.amount, 0);
+  // Withdrawal mutation
+  const withdrawalMutation = trpc.withdrawals.request.useMutation();
 
-  const pendingWithdrawal = TRANSACTIONS
-    .filter(t => t.status === 'pending' && t.type === 'withdrawn')
-    .reduce((sum, t) => sum + t.amount, 0);
+  const wallet = walletQuery.data;
+  const transactions = transactionsQuery.data || [];
 
-  const currentBalance = totalEarned - totalWithdrawn;
+  const filteredTransactions = selectedFilter === 'all'
+    ? transactions
+    : transactions.filter(t => t.type === selectedFilter);
 
-  const handleWithdraw = () => {
+  const currentBalance = wallet?.balance ? parseFloat(wallet.balance) : 0;
+  const totalEarned = wallet?.totalEarned ? parseFloat(wallet.totalEarned) : 0;
+  const totalWithdrawn = wallet?.totalWithdrawn ? parseFloat(wallet.totalWithdrawn) : 0;
+  const pendingBalance = wallet?.pendingBalance ? parseFloat(wallet.pendingBalance) : 0;
+
+  const handleWithdraw = async () => {
     const amount = parseFloat(withdrawAmount);
     if (!amount || amount < 5) {
       Alert.alert('Error', 'Minimum withdrawal is $5');
@@ -94,194 +59,218 @@ export default function WalletScreen() {
       Alert.alert('Error', 'Insufficient balance');
       return;
     }
-    Alert.alert('Success', `Withdrawal of $${amount.toFixed(2)} initiated! Check your PayPal in 1-3 business days.`);
-    setWithdrawAmount('');
-    setShowWithdrawModal(false);
+
+    setIsWithdrawing(true);
+    try {
+      // Call withdrawal API
+      const result = await withdrawalMutation.mutateAsync({
+        amount: amount.toFixed(2),
+        method: withdrawMethod as any,
+        paymentDetails: '', // Would get from user profile
+      });
+
+      Alert.alert('Success', `Withdrawal of $${amount.toFixed(2)} initiated! You'll receive it via ${withdrawMethod} in 1-3 business days.`);
+      setWithdrawAmount('');
+      setShowWithdrawModal(false);
+      walletQuery.refetch();
+    } catch (error) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'Withdrawal failed');
+    } finally {
+      setIsWithdrawing(false);
+    }
   };
 
-  const renderTransaction = ({ item }: { item: Transaction }) => (
-    <View className="mb-3">
-      <FuturisticCard className="p-4 flex-row items-center gap-3" gradient="cyan">
-        <Text className="text-3xl">{item.icon}</Text>
-        <View className="flex-1 gap-1">
-          <Text className="text-sm font-semibold text-foreground">{item.description}</Text>
-          <View className="flex-row justify-between items-center">
-            <Text className="text-xs text-muted">{item.date}</Text>
-            <Text className={`text-xs px-2 py-1 rounded-full ${
-              item.status === 'completed' ? 'bg-success/20 text-success' :
-              item.status === 'pending' ? 'bg-warning/20 text-warning' :
-              'bg-error/20 text-error'
-            }`}>
-              {item.status}
-            </Text>
-          </View>
-        </View>
-        <Text className={`text-base font-bold ${item.type === 'withdrawn' ? 'text-error' : 'text-success'}`}>
-          {item.type === 'withdrawn' ? '-' : '+'}${item.amount.toFixed(2)}
-        </Text>
-      </FuturisticCard>
-    </View>
-  );
+  if (!isAuthenticated) {
+    return (
+      <ScreenContainer className="items-center justify-center">
+        <Text className="text-muted">Please log in to view your wallet</Text>
+      </ScreenContainer>
+    );
+  }
+
+  if (walletQuery.isLoading) {
+    return (
+      <ScreenContainer className="items-center justify-center">
+        <ActivityIndicator size="large" color="#00D9FF" />
+      </ScreenContainer>
+    );
+  }
 
   return (
     <ScreenContainer className="p-0 bg-background">
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} className="bg-background">
         {/* Header */}
         <View className="px-6 py-6 gap-4">
-          <View className="flex-row justify-between items-center">
-            <View>
-              <Text className="text-sm text-muted">Wallet</Text>
-              <Text className="text-2xl font-bold text-foreground">Your Balance</Text>
-            </View>
-            <Text className="text-3xl">💳</Text>
-          </View>
+          <Text className="text-2xl font-bold text-foreground">Wallet</Text>
 
           {/* Balance Card */}
-          <FuturisticCard className="p-6 gap-4" gradient="purple">
-            <View className="gap-2">
-              <Text className="text-sm text-muted">Current Balance</Text>
-              <Text className="text-4xl font-bold text-success">${currentBalance.toFixed(2)}</Text>
-            </View>
-
-            <View className="flex-row gap-2 pt-4 border-t border-border">
-              <View className="flex-1">
-                <Text className="text-xs text-muted mb-1">Total Earned</Text>
-                <Text className="text-lg font-bold text-success">${totalEarned.toFixed(2)}</Text>
-              </View>
-              <View className="w-px bg-border" />
-              <View className="flex-1">
-                <Text className="text-xs text-muted mb-1">Withdrawn</Text>
-                <Text className="text-lg font-bold text-error">${totalWithdrawn.toFixed(2)}</Text>
-              </View>
-            </View>
-
-            <Pressable
-              onPress={() => setShowWithdrawModal(true)}
-              style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
-            >
-              <View className="bg-gradient-to-r from-cyan-500 to-blue-500 rounded-lg py-3 items-center mt-4">
-                <Text className="text-background font-bold">Withdraw Money</Text>
-              </View>
-            </Pressable>
-          </FuturisticCard>
-        </View>
-
-        {/* Withdrawal Methods */}
-        <View className="px-6 py-4 gap-3">
-          <Text className="text-sm font-bold text-foreground">Withdrawal Methods</Text>
-          <FuturisticCard className="p-4 flex-row items-center gap-3" gradient="cyan">
-            <Text className="text-3xl">💰</Text>
-            <View className="flex-1">
-              <Text className="text-sm font-semibold text-foreground">PayPal</Text>
-              <Text className="text-xs text-muted mt-1">Instant transfer to your PayPal account</Text>
-            </View>
-            <Text className="text-lg">✓</Text>
-          </FuturisticCard>
-          <FuturisticCard className="p-4 flex-row items-center gap-3" gradient="pink">
-            <Text className="text-3xl">🎁</Text>
-            <View className="flex-1">
-              <Text className="text-sm font-semibold text-foreground">Gift Cards</Text>
-              <Text className="text-xs text-muted mt-1">Amazon, iTunes, Google Play</Text>
-            </View>
-            <Text className="text-lg">✓</Text>
-          </FuturisticCard>
-        </View>
-
-        {/* Filter Tabs */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          className="px-6 py-4"
-          contentContainerStyle={{ gap: 8 }}
-        >
-          {['all', 'earned', 'withdrawn', 'bonus', 'referral'].map((filter) => (
-            <Pressable
-              key={filter}
-              onPress={() => setSelectedFilter(filter as any)}
-              style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
-            >
-              <View
-                className={`px-4 py-2 rounded-full border ${
-                  selectedFilter === filter
-                    ? 'bg-primary border-primary'
-                    : 'bg-surface border-border'
-                }`}
+          <FuturisticCard className="p-6 gap-4" gradient="cyan">
+            <Text className="text-sm text-muted">Available Balance</Text>
+            <Text className="text-4xl font-bold text-primary">${currentBalance.toFixed(2)}</Text>
+            <View className="flex-row gap-2 pt-2">
+              <Pressable
+                onPress={() => setShowWithdrawModal(true)}
+                style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }, { flex: 1 }]}
               >
-                <Text
-                  className={`text-sm font-semibold ${
-                    selectedFilter === filter ? 'text-background' : 'text-foreground'
+                <View className="bg-success rounded-lg py-3 items-center">
+                  <Text className="text-sm font-bold text-background">Withdraw</Text>
+                </View>
+              </Pressable>
+              <Pressable
+                onPress={() => walletQuery.refetch()}
+                style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }, { flex: 1 }]}
+              >
+                <View className="bg-primary/20 border border-primary rounded-lg py-3 items-center">
+                  <Text className="text-sm font-bold text-primary">Refresh</Text>
+                </View>
+              </Pressable>
+            </View>
+          </FuturisticCard>
+
+          {/* Stats */}
+          <View className="flex-row gap-3">
+            <FuturisticCard className="flex-1 p-4 gap-2" gradient="purple">
+              <Text className="text-xs text-muted">Total Earned</Text>
+              <Text className="text-xl font-bold text-success">${totalEarned.toFixed(2)}</Text>
+            </FuturisticCard>
+            <FuturisticCard className="flex-1 p-4 gap-2" gradient="blue">
+              <Text className="text-xs text-muted">Withdrawn</Text>
+              <Text className="text-xl font-bold text-primary">${totalWithdrawn.toFixed(2)}</Text>
+            </FuturisticCard>
+            {pendingBalance > 0 && (
+              <FuturisticCard className="flex-1 p-4 gap-2" gradient="pink">
+                <Text className="text-xs text-muted">Pending</Text>
+                <Text className="text-xl font-bold text-warning">${pendingBalance.toFixed(2)}</Text>
+              </FuturisticCard>
+            )}
+          </View>
+        </View>
+
+        {/* Filters */}
+        <View className="px-6 py-4 gap-3">
+          <Text className="text-sm font-bold text-foreground">Transaction History</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="gap-2">
+            {['all', 'earned', 'withdrawn', 'bonus', 'referral'].map((filter) => (
+              <Pressable
+                key={filter}
+                onPress={() => setSelectedFilter(filter as any)}
+                style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+              >
+                <View
+                  className={`px-4 py-2 rounded-full ${
+                    selectedFilter === filter
+                      ? 'bg-primary'
+                      : 'bg-surface border border-border'
                   }`}
                 >
-                  {filter === 'all' && 'All'}
-                  {filter === 'earned' && 'Earned'}
-                  {filter === 'withdrawn' && 'Withdrawn'}
-                  {filter === 'bonus' && 'Bonus'}
-                  {filter === 'referral' && 'Referral'}
-                </Text>
-              </View>
-            </Pressable>
-          ))}
-        </ScrollView>
+                  <Text
+                    className={`text-xs font-bold capitalize ${
+                      selectedFilter === filter ? 'text-background' : 'text-foreground'
+                    }`}
+                  >
+                    {filter}
+                  </Text>
+                </View>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
 
-        {/* Transactions */}
-        <View className="px-6 py-4 pb-8">
-          <View className="flex-row justify-between items-center mb-4">
-            <Text className="text-lg font-bold text-foreground">Transaction History</Text>
-            <Text className="text-sm text-muted">{filteredTransactions.length}</Text>
-          </View>
-
-          <FlatList
-            data={filteredTransactions}
-            renderItem={renderTransaction}
-            keyExtractor={(item) => item.id}
-            scrollEnabled={false}
-          />
+        {/* Transactions List */}
+        <View className="px-6 pb-6">
+          {filteredTransactions.length === 0 ? (
+            <FuturisticCard className="p-8 items-center gap-2" gradient="purple">
+              <Text className="text-3xl">📭</Text>
+              <Text className="text-sm text-muted">No transactions yet</Text>
+            </FuturisticCard>
+          ) : (
+            <FlatList
+              data={filteredTransactions}
+              keyExtractor={(item) => item.id.toString()}
+              scrollEnabled={false}
+              renderItem={({ item }) => (
+                <FuturisticCard className="p-4 flex-row items-center gap-3 mb-3" gradient="purple">
+                  <View className="w-12 h-12 rounded-full bg-primary/20 items-center justify-center">
+                    <Text className="text-lg">
+                      {item.type === 'survey' ? '📋' : item.type === 'offer' ? '🎁' : item.type === 'game' ? '🎮' : item.type === 'withdrawal' ? '💸' : item.type === 'bonus' ? '🎁' : '👥'}
+                    </Text>
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-sm font-bold text-foreground">{item.description}</Text>
+                    <Text className="text-xs text-muted mt-1">
+                      {new Date(item.createdAt).toLocaleDateString()}
+                    </Text>
+                  </View>
+                  <View className="items-end">
+                    <Text className={`text-sm font-bold ${item.type === 'withdrawal' ? 'text-error' : 'text-success'}`}>
+                      {item.type === 'withdrawal' ? '-' : '+'}${parseFloat(item.amount).toFixed(2)}
+                    </Text>
+                    <Text className="text-xs text-muted mt-1 capitalize">{item.status}</Text>
+                  </View>
+                </FuturisticCard>
+              )}
+            />
+          )}
         </View>
       </ScrollView>
 
       {/* Withdraw Modal */}
-      <Modal
-        visible={showWithdrawModal}
-        transparent
-        animationType="fade"
-      >
+      <Modal visible={showWithdrawModal} transparent animationType="fade">
         <View className="flex-1 bg-black/50 items-center justify-center p-6">
-          <FuturisticCard className="w-full p-6 gap-4" gradient="purple">
-            <Text className="text-lg font-bold text-foreground">Withdraw Money</Text>
-            <Text className="text-sm text-muted">Available: ${currentBalance.toFixed(2)}</Text>
+          <FuturisticCard className="w-full max-w-sm p-6 gap-4" gradient="blue">
+            <Text className="text-lg font-bold text-foreground">Request Withdrawal</Text>
 
-            <View className="gap-2">
-              <Text className="text-xs text-muted">Amount (minimum $5)</Text>
-              <View className="border border-cyan-500/30 rounded-lg px-4 py-3 flex-row items-center gap-2 bg-surface/50">
-                <Text className="text-foreground">$</Text>
-                <TextInput 
-                  className="text-foreground flex-1"
-                  value={withdrawAmount}
-                  onChangeText={setWithdrawAmount}
+            <View className="gap-3">
+              <View>
+                <Text className="text-xs font-bold text-muted mb-2">Amount (USD)</Text>
+                <TextInput
                   placeholder="Enter amount"
                   placeholderTextColor="#8B92B0"
+                  value={withdrawAmount}
+                  onChangeText={setWithdrawAmount}
                   keyboardType="decimal-pad"
+                  className="bg-surface/50 border border-cyan-500/30 rounded-lg px-4 py-3 text-foreground"
                 />
+                <Text className="text-xs text-muted mt-2">Min: $5 | Available: ${currentBalance.toFixed(2)}</Text>
+              </View>
+
+              <View>
+                <Text className="text-xs font-bold text-muted mb-2">Withdraw To</Text>
+                {['paypal', 'giftcard', 'bank'].map((method) => (
+                  <Pressable
+                    key={method}
+                    onPress={() => setWithdrawMethod(method as any)}
+                    style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+                  >
+                    <View className={`p-3 rounded-lg mb-2 border ${withdrawMethod === method ? 'border-primary bg-primary/10' : 'border-border'}`}>
+                      <Text className="text-sm font-bold text-foreground capitalize">{method}</Text>
+                    </View>
+                  </Pressable>
+                ))}
               </View>
             </View>
 
-            <View className="flex-row gap-2 pt-4">
+            <View className="flex-row gap-3 pt-4">
               <Pressable
                 onPress={() => setShowWithdrawModal(false)}
-                className="flex-1"
-                style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+                disabled={isWithdrawing}
+                style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }, { flex: 1 }]}
               >
-                <View className="bg-surface/50 border border-border rounded-lg py-3 items-center">
-                  <Text className="text-foreground font-semibold">Cancel</Text>
+                <View className="border border-border rounded-lg py-3 items-center">
+                  <Text className="text-sm font-bold text-foreground">Cancel</Text>
                 </View>
               </Pressable>
               <Pressable
                 onPress={handleWithdraw}
-                className="flex-1"
-                style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+                disabled={isWithdrawing}
+                style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }, { flex: 1 }]}
               >
-                <View className="bg-gradient-to-r from-cyan-500 to-blue-500 rounded-lg py-3 items-center">
-                  <Text className="text-background font-bold">Withdraw</Text>
+                <View className="bg-success rounded-lg py-3 items-center">
+                  {isWithdrawing ? (
+                    <ActivityIndicator size="small" color="#000" />
+                  ) : (
+                    <Text className="text-sm font-bold text-background">Withdraw</Text>
+                  )}
                 </View>
               </Pressable>
             </View>

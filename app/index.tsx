@@ -1,20 +1,20 @@
 import { ScrollView, Text, View, TouchableOpacity, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ScreenContainer } from '@/components/screen-container';
-import { useAuth } from '@/lib/auth-context';
+import { useAuth } from '@/hooks/use-auth';
 import { useEffect } from 'react';
 
 export default function OnboardingScreen() {
   const router = useRouter();
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
 
   useEffect(() => {
-    if (!isLoading && isAuthenticated) {
+    if (!loading && isAuthenticated) {
       router.replace('/(tabs)');
     }
-  }, [isAuthenticated, isLoading]);
+  }, [isAuthenticated, loading]);
 
-  if (isLoading) {
+  if (loading) {
     return (
       <ScreenContainer className="items-center justify-center bg-background">
         <Text className="text-5xl mb-4">🚀</Text>

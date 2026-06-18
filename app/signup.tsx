@@ -1,152 +1,122 @@
-import { ScrollView, Text, View, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { useState } from 'react';
+import React, { useState } from 'react';
+import { ScrollView, Text, View, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ScreenContainer } from '@/components/screen-container';
-import { AuthInput } from '@/components/auth-input';
-import { useAuth } from '@/lib/auth-context';
+import { FuturisticCard } from '@/components/futuristic-card';
+import { useAuth } from '@/hooks/use-auth';
+import * as Constants from '@/constants/oauth';
 
-export default function SignUpScreen() {
+export default function SignupScreen() {
   const router = useRouter();
-  const { signup, isLoading } = useAuth();
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [errors, setErrors] = useState<{
-    name?: string;
-    email?: string;
-    password?: string;
-    confirmPassword?: string;
-  }>({});
-  const [generalError, setGeneralError] = useState('');
+  const { loading: authLoading } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSignUp = async () => {
+  const handleGoogleSignup = async () => {
+    setIsLoading(true);
     try {
-      setErrors({});
-      setGeneralError('');
-
-      // Validation
-      const newErrors: typeof errors = {};
-      if (!name) newErrors.name = 'Name is required';
-      if (!email) newErrors.email = 'Email is required';
-      if (!password) newErrors.password = 'Password is required';
-      if (!confirmPassword) newErrors.confirmPassword = 'Please confirm your password';
-      if (password && confirmPassword && password !== confirmPassword) {
-        newErrors.confirmPassword = 'Passwords do not match';
-      }
-
-      if (Object.keys(newErrors).length > 0) {
-        setErrors(newErrors);
-        return;
-      }
-
-      await signup(email, password, name);
-      router.replace('/(tabs)');
+      // Use the real OAuth login flow (works for both signup and signin)
+      await Constants.startOAuthLogin();
+      // OAuth callback will handle the redirect to app
     } catch (error) {
-      setGeneralError(error instanceof Error ? error.message : 'Sign up failed');
+      console.error('Google Sign-Up error:', error);
+      Alert.alert('Error', 'Google Sign-Up failed. Please try again.');
+      setIsLoading(false);
     }
   };
+
+  const handleLoginPress = () => {
+    router.push('/login');
+  };
+
+  if (authLoading) {
+    return (
+      <ScreenContainer className="items-center justify-center">
+        <ActivityIndicator size="large" color="#00D9FF" />
+      </ScreenContainer>
+    );
+  }
 
   return (
     <ScreenContainer className="p-0 bg-background">
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} className="bg-background">
-        {/* Header */}
-        <View className="bg-gradient-to-b from-primary/10 to-transparent px-6 py-8 items-center">
-          <Text className="text-5xl mb-3">🎉</Text>
-          <Text className="text-3xl font-bold text-foreground">Join EarnBro</Text>
-          <Text className="text-sm text-muted mt-2 text-center">
-            Start earning money today
-          </Text>
-        </View>
+        {/* Background gradient effect */}
+        <View className="absolute inset-0 bg-gradient-to-b from-cyan-500/5 via-transparent to-purple-500/5 pointer-events-none" />
 
-        {/* Form */}
-        <View className="px-6 py-8 flex-1">
-          {generalError && (
-            <View className="bg-error/10 border border-error rounded-lg p-3 mb-4">
-              <Text className="text-sm text-error">{generalError}</Text>
-            </View>
-          )}
+        {/* Content */}
+        <View className="flex-1 px-6 py-8 justify-center gap-8">
+          {/* Logo & Title */}
+          <View className="items-center gap-4">
+            <Text className="text-5xl">💰</Text>
+            <Text className="text-3xl font-bold text-foreground">EarnBro</Text>
+            <Text className="text-sm text-primary text-center">Join Millions Earning Money</Text>
+          </View>
 
-          <AuthInput
-            label="Full Name"
-            placeholder="John Doe"
-            value={name}
-            onChangeText={setName}
-            error={errors.name}
-            icon="👤"
-          />
-
-          <AuthInput
-            label="Email Address"
-            placeholder="you@example.com"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            error={errors.email}
-            icon="📧"
-          />
-
-          <AuthInput
-            label="Password"
-            placeholder="••••••••"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            error={errors.password}
-            icon="🔐"
-          />
-
-          <AuthInput
-            label="Confirm Password"
-            placeholder="••••••••"
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            secureTextEntry
-            error={errors.confirmPassword}
-            icon="✓"
-          />
-
-          {/* Terms Checkbox */}
-          <View className="flex-row items-start gap-2 mb-6">
-            <Text className="text-primary text-lg">✓</Text>
-            <Text className="text-xs text-muted flex-1">
-              I agree to the{' '}
-              <Text className="text-primary font-semibold">Terms of Service</Text> and{' '}
-              <Text className="text-primary font-semibold">Privacy Policy</Text>
+          {/* Welcome Bonus Card */}
+          <FuturisticCard className="p-6 gap-3 items-center" gradient="green">
+            <Text className="text-3xl">🎁</Text>
+            <Text className="text-lg font-bold text-foreground">$5 Welcome Bonus</Text>
+            <Text className="text-xs text-muted text-center">
+              Get $5 instantly when you sign up and complete your first task
             </Text>
-          </View>
+          </FuturisticCard>
 
-          {/* Sign Up Button */}
-          <TouchableOpacity
-            onPress={handleSignUp}
+          {/* Info Card */}
+          <FuturisticCard className="p-6 gap-3" gradient="cyan">
+            <Text className="text-sm font-semibold text-foreground">Quick & Easy Signup</Text>
+            <Text className="text-xs text-muted leading-relaxed">
+              Create your account with Google and start earning immediately. No credit card required.
+            </Text>
+          </FuturisticCard>
+
+          {/* Google Signup Button */}
+          <Pressable
+            onPress={handleGoogleSignup}
             disabled={isLoading}
-            className="bg-primary rounded-lg py-4 px-6 items-center mb-4"
+            style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
           >
-            {isLoading ? (
-              <ActivityIndicator color="#0a0e27" />
-            ) : (
-              <Text className="text-background font-bold text-base">Create Account</Text>
-            )}
-          </TouchableOpacity>
+            <FuturisticCard className="p-4 items-center flex-row justify-center gap-3" gradient="blue">
+              {isLoading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Text className="text-2xl">🔐</Text>
+                  <Text className="text-base font-bold text-background">Sign up with Google</Text>
+                </>
+              )}
+            </FuturisticCard>
+          </Pressable>
 
-          {/* Sign In Link */}
-          <View className="flex-row justify-center gap-1">
+          {/* Features List */}
+          <View className="gap-2">
+            <Text className="text-xs font-bold text-muted uppercase">Start Earning Today</Text>
+            {[
+              { icon: '⚡', title: 'Instant Payout', desc: 'Withdraw earnings anytime' },
+              { icon: '🔒', title: 'Secure & Safe', desc: 'Your data is protected' },
+              { icon: '💯', title: 'Trusted Platform', desc: 'Millions of users worldwide' },
+              { icon: '🚀', title: 'Easy Tasks', desc: 'Simple ways to earn' },
+            ].map((feature, index) => (
+              <FuturisticCard key={index} className="p-3 flex-row items-center gap-3" gradient="purple">
+                <Text className="text-2xl">{feature.icon}</Text>
+                <View className="flex-1">
+                  <Text className="text-sm font-semibold text-foreground">{feature.title}</Text>
+                  <Text className="text-xs text-muted mt-1">{feature.desc}</Text>
+                </View>
+              </FuturisticCard>
+            ))}
+          </View>
+
+          {/* Login Link */}
+          <View className="flex-row items-center justify-center gap-2">
             <Text className="text-sm text-muted">Already have an account?</Text>
-            <TouchableOpacity onPress={() => router.push('/login')}>
-              <Text className="text-sm text-primary font-bold">Sign In</Text>
-            </TouchableOpacity>
+            <Pressable onPress={handleLoginPress}>
+              <Text className="text-sm font-bold text-primary">Sign In</Text>
+            </Pressable>
           </View>
-        </View>
 
-        {/* Welcome Bonus */}
-        <View className="px-6 py-6 border-t border-border bg-success/5">
-          <View className="flex-row items-center gap-2">
-            <Text className="text-2xl">🎁</Text>
-            <View className="flex-1">
-              <Text className="text-sm font-bold text-success">Welcome Bonus</Text>
-              <Text className="text-xs text-muted">Get $5 BroCoin$ when you sign up</Text>
-            </View>
-          </View>
+          {/* Terms */}
+          <Text className="text-xs text-muted text-center leading-relaxed">
+            By signing up, you agree to our Terms of Service and Privacy Policy
+          </Text>
         </View>
       </ScrollView>
     </ScreenContainer>

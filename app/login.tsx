@@ -1,48 +1,37 @@
 import React, { useState } from 'react';
-import { ScrollView, Text, View, Pressable, TextInput, ActivityIndicator, Alert } from 'react-native';
+import { ScrollView, Text, View, Pressable, ActivityIndicator, Alert, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { ScreenContainer } from '@/components/screen-container';
 import { FuturisticCard } from '@/components/futuristic-card';
-import { mockGoogleUser } from '@/lib/google-auth';
-import { useAuth } from '@/lib/auth-context';
+import { useAuth } from '@/hooks/use-auth';
+import * as Constants from '@/constants/oauth';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { login } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const { loading: authLoading } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
-
-  const handleEmailLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      await login(email, password);
-      router.replace('/(tabs)');
-    } catch (error) {
-      Alert.alert('Error', 'Login failed');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleGoogleLogin = async () => {
     setIsLoading(true);
     try {
-      const mockEmail = 'google_' + Math.random().toString(36).substr(2, 9) + '@gmail.com';
-      const mockPassword = 'google_oauth_token';
-      await login(mockEmail, mockPassword);
-      router.replace('/(tabs)');
+      // Use the real OAuth login flow
+      await Constants.startOAuthLogin();
+      // OAuth callback will handle the redirect to app
     } catch (error) {
-      Alert.alert('Error', 'Google Sign-In failed');
-    } finally {
+      console.error('Google Sign-In error:', error);
+      Alert.alert('Error', 'Google Sign-In failed. Please try again.');
       setIsLoading(false);
     }
   };
+
+  if (authLoading) {
+    return (
+      <ScreenContainer className="items-center justify-center">
+        <ActivityIndicator size="large" color="#00D9FF" />
+      </ScreenContainer>
+    );
+  }
 
   return (
     <ScreenContainer className="p-0 bg-background">
@@ -59,96 +48,55 @@ export default function LoginScreen() {
             <Text className="text-sm text-primary text-center">Earn Money Doing What You Love</Text>
           </View>
 
-          {/* Email Login Form */}
-          <FuturisticCard className="p-6 gap-4" gradient="blue">
-            <Text className="text-lg font-bold text-foreground">Sign In</Text>
-
-            <View className="gap-3">
-              <TextInput
-                placeholder="Email"
-                placeholderTextColor="#8B92B0"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                editable={!isLoading}
-                className="bg-surface/50 border border-cyan-500/30 rounded-lg px-4 py-3 text-foreground"
-              />
-
-              <TextInput
-                placeholder="Password"
-                placeholderTextColor="#8B92B0"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                editable={!isLoading}
-                className="bg-surface/50 border border-cyan-500/30 rounded-lg px-4 py-3 text-foreground"
-              />
-            </View>
-
-            <Pressable
-              onPress={handleEmailLogin}
-              disabled={isLoading}
-              style={({ pressed }) => [{ opacity: pressed ? 0.8 : 1 }]}
-            >
-              <View className="bg-gradient-to-r from-cyan-500 to-blue-500 rounded-lg py-3 items-center">
-                {isLoading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text className="text-background font-bold text-base">Sign In</Text>
-                )}
-              </View>
-            </Pressable>
-
-            <View className="flex-row items-center gap-3 my-2">
-              <View className="flex-1 h-px bg-border" />
-              <Text className="text-xs text-muted">OR</Text>
-              <View className="flex-1 h-px bg-border" />
-            </View>
-
-            <Pressable
-              onPress={handleGoogleLogin}
-              disabled={isLoading}
-              style={({ pressed }) => [{ opacity: pressed ? 0.8 : 1 }]}
-            >
-              <View className="bg-surface/50 border border-cyan-500/30 rounded-lg py-3 items-center flex-row justify-center gap-2">
-                <Text className="text-lg">🔵</Text>
-                <Text className="text-foreground font-semibold">Sign in with Google</Text>
-              </View>
-            </Pressable>
+          {/* Info Card */}
+          <FuturisticCard className="p-6 gap-3" gradient="cyan">
+            <Text className="text-sm font-semibold text-foreground">Welcome Back!</Text>
+            <Text className="text-xs text-muted leading-relaxed">
+              Sign in with your Google account to access your EarnBro dashboard and start earning money through surveys, offers, and games.
+            </Text>
           </FuturisticCard>
 
-          {/* Sign Up Link */}
-          <View className="items-center gap-2">
-            <Text className="text-muted">Don't have an account?</Text>
-            <Pressable onPress={() => router.push('/signup')}>
-              <Text className="text-primary font-bold text-base">Create Free Account</Text>
-            </Pressable>
+          {/* Google Login Button */}
+          <Pressable
+            onPress={handleGoogleLogin}
+            disabled={isLoading}
+            style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+          >
+            <FuturisticCard className="p-4 items-center flex-row justify-center gap-3" gradient="blue">
+              {isLoading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Text className="text-2xl">🔐</Text>
+                  <Text className="text-base font-bold text-background">Sign in with Google</Text>
+                </>
+              )}
+            </FuturisticCard>
+          </Pressable>
+
+          {/* Features List */}
+          <View className="gap-2">
+            <Text className="text-xs font-bold text-muted uppercase">What You Can Do</Text>
+            {[
+              { icon: '📋', title: 'Complete Surveys', desc: 'Get paid for your opinions' },
+              { icon: '🎁', title: 'Claim Offers', desc: 'Exclusive deals and rewards' },
+              { icon: '🎮', title: 'Play Games', desc: 'Win cash prizes daily' },
+              { icon: '👥', title: 'Refer Friends', desc: 'Earn bonuses for referrals' },
+            ].map((feature, index) => (
+              <FuturisticCard key={index} className="p-3 flex-row items-center gap-3" gradient="purple">
+                <Text className="text-2xl">{feature.icon}</Text>
+                <View className="flex-1">
+                  <Text className="text-sm font-semibold text-foreground">{feature.title}</Text>
+                  <Text className="text-xs text-muted mt-1">{feature.desc}</Text>
+                </View>
+              </FuturisticCard>
+            ))}
           </View>
 
-          {/* Features */}
-          <FuturisticCard className="p-4 gap-3" gradient="purple">
-            <View className="flex-row gap-3">
-              <Text className="text-2xl">✓</Text>
-              <View className="flex-1">
-                <Text className="text-sm font-semibold text-foreground">Instant Payouts</Text>
-                <Text className="text-xs text-muted mt-1">Withdraw to PayPal in minutes</Text>
-              </View>
-            </View>
-            <View className="flex-row gap-3">
-              <Text className="text-2xl">🎮</Text>
-              <View className="flex-1">
-                <Text className="text-sm font-semibold text-foreground">Fun Tasks</Text>
-                <Text className="text-xs text-muted mt-1">Play games, watch videos, earn cash</Text>
-              </View>
-            </View>
-            <View className="flex-row gap-3">
-              <Text className="text-2xl">👥</Text>
-              <View className="flex-1">
-                <Text className="text-sm font-semibold text-foreground">Refer Friends</Text>
-                <Text className="text-xs text-muted mt-1">Earn commissions on referrals</Text>
-              </View>
-            </View>
-          </FuturisticCard>
+          {/* Terms */}
+          <Text className="text-xs text-muted text-center leading-relaxed">
+            By signing in, you agree to our Terms of Service and Privacy Policy
+          </Text>
         </View>
       </ScrollView>
     </ScreenContainer>
