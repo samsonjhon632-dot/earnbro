@@ -38,18 +38,23 @@
 - [x] Logout functionality
 
 ### Surveys Screen
-- [ ] Fetch and display available surveys
-- [ ] Survey card UI with title, time, reward
-- [ ] Filter surveys by reward amount
-- [ ] Search surveys
+- [x] Fetch and display available surveys
+- [x] Survey card UI with title, time, reward
+- [x] Filter surveys by reward amount
+- [x] Search surveys
+- [x] Sort surveys (highest reward, quickest, etc.)
+- [x] Category filtering
 - [ ] Survey detail screen
 - [ ] Start survey flow
 - [ ] Survey completion tracking
 
 ### Offers Screen
-- [ ] Fetch and display available offers
-- [ ] Offer card UI with title, description, reward
-- [ ] Offer categories/filtering
+- [x] Fetch and display available offers
+- [x] Offer card UI with title, description, reward
+- [x] Offer categories/filtering
+- [x] Search offers
+- [x] Sort offers (reward, expiring soon)
+- [x] Expiry countdown display
 - [ ] Claim offer functionality
 - [ ] Offer detail screen
 - [ ] Track claimed offers
