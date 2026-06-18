@@ -4,10 +4,14 @@
 
 ### Authentication & Onboarding
 - [x] Splash screen with app branding
-- [ ] Sign up flow (email, password, profile)
-- [ ] Login flow
+- [x] Onboarding/welcome screen
+- [x] Sign up flow (email, password, profile)
+- [x] Login flow
 - [x] Logout functionality
 - [x] Session persistence
+- [x] Password reset flow
+- [x] Auth context and state management
+- [x] Protected routes (tabs require login)
 
 ### Dashboard/Home Screen
 - [x] Display user balance prominently

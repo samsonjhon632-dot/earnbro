@@ -1,13 +1,29 @@
-import { ScrollView, Text, View, TouchableOpacity, Switch } from 'react-native';
+import { ScrollView, Text, View, TouchableOpacity, Switch, Alert } from 'react-native';
 import { useState } from 'react';
+import { useRouter } from 'expo-router';
 import { ScreenContainer } from '@/components/screen-container';
 import { NeonCard } from '@/components/neon-card';
+import { useAuth } from '@/lib/auth-context';
 
 export default function SettingsScreen() {
+  const router = useRouter();
+  const { logout, user } = useAuth();
   const [notifications, setNotifications] = useState(true);
   const [darkMode, setDarkMode] = useState(true);
   const [soundEffects, setSoundEffects] = useState(true);
   const [haptics, setHaptics] = useState(true);
+
+  const handleLogout = async () => {
+    await logout();
+    router.replace('/');
+  };
+
+  const handleLogoutPress = () => {
+    Alert.alert('Logout', 'Are you sure you want to logout?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Logout', style: 'destructive', onPress: handleLogout },
+    ]);
+  };
 
   const settingsSections: Array<{
     title: string;
@@ -22,9 +38,9 @@ export default function SettingsScreen() {
     {
       title: 'Account',
       items: [
-        { label: 'Account Name', value: 'Rider Title', icon: '👤' },
-        { label: 'Email', value: 'rider@example.com', icon: '📧' },
-        { label: 'User ID', value: '12345678', icon: '🆔' },
+        { label: 'Account Name', value: user?.name || 'User', icon: '👤' },
+        { label: 'Email', value: user?.email || 'user@example.com', icon: '📧' },
+        { label: 'User ID', value: user?.id || '12345678', icon: '🆔' },
       ],
     },
     {
@@ -63,73 +79,79 @@ export default function SettingsScreen() {
     <ScreenContainer className="p-0 bg-background">
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} className="bg-background">
         {/* Header */}
-        <View className="bg-gradient-to-b from-primary/10 to-transparent px-6 py-8 border-b border-border">
-          <Text className="text-sm text-muted mb-2">⚙️ Back</Text>
-          <Text className="text-3xl font-bold text-foreground">Settings</Text>
+        <View className="bg-gradient-to-b from-primary/10 to-transparent px-6 py-6 border-b border-border">
+          <Text className="text-sm text-muted mb-2">Settings</Text>
+          <Text className="text-3xl font-bold text-foreground">Preferences</Text>
         </View>
 
         {/* Settings Sections */}
-        {settingsSections.map((section, sectionIndex) => (
-          <View key={sectionIndex} className="px-6 py-6">
-            <Text className="text-sm font-bold text-primary mb-3 uppercase">{section.title}</Text>
-            {section.items.map((item, itemIndex) => (
-              <NeonCard key={itemIndex} className="mb-3 bg-surface border-border">
-                <View className="flex-row justify-between items-center">
-                  <View className="flex-1 flex-row items-center gap-3">
-                    <Text className="text-lg">{item.icon}</Text>
-                    <View className="flex-1">
-                      <Text className="text-sm font-semibold text-foreground">{item.label}</Text>
-                      {!item.toggle && (
-                        <Text className="text-xs text-muted mt-1">{item.value}</Text>
+        <View className="px-6 py-6 gap-6">
+          {settingsSections.map((section, sectionIndex) => (
+            <View key={sectionIndex}>
+              <Text className="text-xs font-bold text-primary uppercase mb-3">
+                {section.title}
+              </Text>
+              <View className="gap-2">
+                {section.items.map((item, itemIndex) => (
+                  <NeonCard key={itemIndex} className="bg-surface border-border">
+                    <View className="flex-row justify-between items-center">
+                      <View className="flex-row items-center gap-3 flex-1">
+                        <Text className="text-lg">{item.icon}</Text>
+                        <View className="flex-1">
+                          <Text className="text-sm font-semibold text-foreground">
+                            {item.label}
+                          </Text>
+                          {item.value && !item.toggle && (
+                            <Text className="text-xs text-muted mt-1">{item.value}</Text>
+                          )}
+                        </View>
+                      </View>
+                      {item.toggle && item.onChange ? (
+                        <Switch
+                          value={typeof item.value === 'boolean' ? item.value : false}
+                          onValueChange={item.onChange}
+                          trackColor={{ false: '#2a3f5f', true: '#00D9FF' }}
+                          thumbColor={typeof item.value === 'boolean' && item.value ? '#00D9FF' : '#8892B0'}
+                        />
+                      ) : (
+                        <Text className="text-muted text-sm">›</Text>
                       )}
                     </View>
-                  </View>
-                  {item.toggle && item.onChange ? (
-                    <Switch
-                      value={typeof item.value === 'boolean' ? item.value : false}
-                      onValueChange={item.onChange}
-                      trackColor={{ false: '#2a3f5f', true: '#00D9FF' }}
-                      thumbColor={typeof item.value === 'boolean' && item.value ? '#00D9FF' : '#8892B0'}
-                    />
-                  ) : (
-                    <Text className="text-muted text-sm">›</Text>
-                  )}
-                </View>
-              </NeonCard>
-            ))}
-          </View>
-        ))}
-
-        {/* Support Section */}
-        <View className="px-6 py-6">
-          <Text className="text-sm font-bold text-primary mb-3 uppercase">Support & Legal</Text>
-          {supportItems.map((item, index) => (
-            <NeonCard key={index} className="mb-3 bg-surface border-border">
-              <TouchableOpacity className="flex-row justify-between items-center">
-                <View className="flex-row items-center gap-3">
-                  <Text className="text-lg">{item.icon}</Text>
-                  <Text className="text-sm font-semibold text-foreground">{item.label}</Text>
-                </View>
-                <Text className="text-muted">›</Text>
-              </TouchableOpacity>
-            </NeonCard>
+                  </NeonCard>
+                ))}
+              </View>
+            </View>
           ))}
-        </View>
 
-        {/* Danger Zone */}
-        <View className="px-6 pb-6">
-          <NeonCard className="bg-error/10 border-error">
-            <TouchableOpacity className="flex-row justify-between items-center py-2">
-              <Text className="text-sm font-semibold text-error">🚪 Logout</Text>
-              <Text className="text-error">›</Text>
-            </TouchableOpacity>
-          </NeonCard>
-        </View>
+          {/* Support Section */}
+          <View>
+            <Text className="text-xs font-bold text-primary uppercase mb-3">
+              Support & Legal
+            </Text>
+            <View className="gap-2">
+              {supportItems.map((item, index) => (
+                <NeonCard key={index} className="bg-surface border-border">
+                  <TouchableOpacity className="flex-row justify-between items-center">
+                    <View className="flex-row items-center gap-3 flex-1">
+                      <Text className="text-lg">{item.icon}</Text>
+                      <Text className="text-sm font-semibold text-foreground">
+                        {item.label}
+                      </Text>
+                    </View>
+                    <Text className="text-muted text-sm">›</Text>
+                  </TouchableOpacity>
+                </NeonCard>
+              ))}
+            </View>
+          </View>
 
-        {/* App Info */}
-        <View className="px-6 pb-6 items-center">
-          <Text className="text-xs text-muted">EarnBro v1.0.0</Text>
-          <Text className="text-xs text-muted mt-1">© 2024 EarnBro. All rights reserved.</Text>
+          {/* Logout Button */}
+          <TouchableOpacity
+            onPress={handleLogoutPress}
+            className="bg-error/10 border border-error rounded-lg p-4 items-center mt-4"
+          >
+            <Text className="text-error font-bold">Logout</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Bottom spacing */}
