@@ -19,7 +19,7 @@ export default function WalletScreen() {
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'earned' | 'withdrawn' | 'bonus' | 'referral'>('all');
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
-  const [withdrawMethod, setWithdrawMethod] = useState<'paypal' | 'giftcard' | 'bank'>('paypal');
+  const [withdrawMethod, setWithdrawMethod] = useState<'bitcoin' | 'ethereum' | 'usdc' | 'litecoin'>('bitcoin');
   const [isWithdrawing, setIsWithdrawing] = useState(false);
 
   // Fetch wallet balance
@@ -65,8 +65,8 @@ export default function WalletScreen() {
       // Call withdrawal API
       const result = await withdrawalMutation.mutateAsync({
         amount: amount.toFixed(2),
-        method: withdrawMethod as any,
-        paymentDetails: '', // Would get from user profile
+        method: withdrawMethod,
+        walletAddress: '', // Would get from user profile
       });
 
       Alert.alert('Success', `Withdrawal of $${amount.toFixed(2)} initiated! You'll receive it via ${withdrawMethod} in 1-3 business days.`);
@@ -236,7 +236,7 @@ export default function WalletScreen() {
 
               <View>
                 <Text className="text-xs font-bold text-muted mb-2">Withdraw To</Text>
-                {['paypal', 'giftcard', 'bank'].map((method) => (
+                {['bitcoin', 'ethereum', 'usdc', 'litecoin'].map((method) => (
                   <Pressable
                     key={method}
                     onPress={() => setWithdrawMethod(method as any)}

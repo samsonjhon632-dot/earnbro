@@ -168,7 +168,7 @@ export const withdrawals = mysqlTable("withdrawals", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
   amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
-  method: mysqlEnum("method", ["paypal", "giftcard", "bank_transfer"]).notNull(),
+  method: mysqlEnum("method", ["bitcoin", "ethereum", "usdc", "litecoin", "paypal", "giftcard", "bank_transfer"]).notNull(),
   paymentDetails: text("paymentDetails"), // encrypted JSON with payment info
   status: mysqlEnum("status", ["pending", "processing", "completed", "failed"]).default("pending").notNull(),
   transactionId: varchar("transactionId", { length: 255 }), // external transaction ID

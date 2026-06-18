@@ -392,7 +392,7 @@ export async function getUserTransactions(userId: number) {
 export async function requestWithdrawal(
   userId: number,
   amount: string,
-  method: "paypal" | "giftcard" | "bank_transfer",
+  method: "bitcoin" | "ethereum" | "usdc" | "litecoin" | "paypal" | "giftcard" | "bank_transfer",
   paymentDetails: string
 ) {
   const db = await getDb();

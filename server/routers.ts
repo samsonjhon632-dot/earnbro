@@ -103,22 +103,81 @@ export const appRouter = router({
     }),
   }),
 
-  // Withdrawal routes
+  // Withdrawal routes - CRYPTO
   withdrawals: router({
     request: protectedProcedure
       .input(
         z.object({
           amount: z.string(),
-          method: z.enum(["paypal", "giftcard", "bank_transfer"]),
-          paymentDetails: z.string(),
+          method: z.enum(["bitcoin", "ethereum", "usdc", "litecoin"]),
+          walletAddress: z.string(),
         })
       )
       .mutation(async ({ ctx, input }) => {
-        return db.requestWithdrawal(ctx.user.id, input.amount, input.method, input.paymentDetails);
+        return db.requestWithdrawal(ctx.user.id, input.amount, input.method, input.walletAddress);
       }),
 
     list: protectedProcedure.query(async ({ ctx }) => {
       return db.getUserWithdrawals(ctx.user.id);
+    }),
+
+    getSupportedCryptos: publicProcedure.query(async () => {
+      return [
+        {
+          id: "bitcoin",
+          name: "Bitcoin",
+          symbol: "BTC",
+          icon: "₿",
+          minWithdrawal: 5,
+          maxWithdrawal: 50000,
+        },
+        {
+          id: "ethereum",
+          name: "Ethereum",
+          symbol: "ETH",
+          icon: "Ξ",
+          minWithdrawal: 5,
+          maxWithdrawal: 50000,
+        },
+        {
+          id: "usdc",
+          name: "USD Coin",
+          symbol: "USDC",
+          icon: "$",
+          minWithdrawal: 5,
+          maxWithdrawal: 50000,
+        },
+        {
+          id: "litecoin",
+          name: "Litecoin",
+          symbol: "LTC",
+          icon: "Ł",
+          minWithdrawal: 5,
+          maxWithdrawal: 50000,
+        },
+      ];
+    }),
+
+    getExchangeRates: publicProcedure.query(async () => {
+      try {
+        const response = await fetch(
+          "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,usd-coin,litecoin&vs_currencies=usd"
+        );
+        const data = await response.json();
+        return {
+          bitcoin: data.bitcoin.usd,
+          ethereum: data.ethereum.usd,
+          usdc: data["usd-coin"].usd,
+          litecoin: data.litecoin.usd,
+        };
+      } catch (error) {
+        return {
+          bitcoin: 45000,
+          ethereum: 2500,
+          usdc: 1,
+          litecoin: 100,
+        };
+      }
     }),
   }),
 });

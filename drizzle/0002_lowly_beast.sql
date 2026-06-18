@@ -1,0 +1,1 @@
+ALTER TABLE `withdrawals` MODIFY COLUMN `method` enum('bitcoin','ethereum','usdc','litecoin','paypal','giftcard','bank_transfer') NOT NULL;
