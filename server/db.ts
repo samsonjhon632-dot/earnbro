@@ -459,6 +459,41 @@ export async function completeWithdrawal(withdrawalId: number, transactionId: st
     .where(eq(withdrawals.id, withdrawalId));
 }
 
+export async function getWithdrawalById(withdrawalId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db
+    .select()
+    .from(withdrawals)
+    .where(eq(withdrawals.id, withdrawalId));
+  
+  return result[0] || null;
+}
+
+export async function updateWithdrawalStatus(
+  withdrawalId: number,
+  updates: {
+    status?: string;
+    transactionId?: string;
+    failureReason?: string;
+  }
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const updateData: any = {};
+  if (updates.status) updateData.status = updates.status;
+  if (updates.transactionId) updateData.transactionId = updates.transactionId;
+  if (updates.failureReason) updateData.failureReason = updates.failureReason;
+  if (updates.status === 'completed') updateData.completedAt = new Date();
+
+  await db
+    .update(withdrawals)
+    .set(updateData)
+    .where(eq(withdrawals.id, withdrawalId));
+}
+
 export async function failWithdrawal(withdrawalId: number, reason: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");

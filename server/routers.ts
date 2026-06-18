@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { router, protectedProcedure, publicProcedure } from "./_core/trpc";
 import * as db from "./db";
+import { blockchainRouter } from "./blockchain-routers";
 
 export const appRouter = router({
   health: publicProcedure.query(() => ({ status: "ok" })),
@@ -179,7 +180,9 @@ export const appRouter = router({
         };
       }
     }),
-  }),
-});
+    }),
 
+  // Blockchain routes
+  blockchain: blockchainRouter,
+});
 export type AppRouter = typeof appRouter;

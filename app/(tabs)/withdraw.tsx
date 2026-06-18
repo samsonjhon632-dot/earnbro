@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, Text, View, Pressable, TextInput, ActivityIndicator, Alert, FlatList } from 'react-native';
+import { ScrollView, Text, View, Pressable, TextInput, ActivityIndicator, Alert, FlatList, Linking } from 'react-native';
 import { ScreenContainer } from '@/components/screen-container';
 import { FuturisticCard } from '@/components/futuristic-card';
 import { trpc } from '@/lib/trpc';
@@ -10,12 +10,15 @@ export default function WithdrawScreen() {
   const { data: cryptos } = trpc.withdrawals.getSupportedCryptos.useQuery();
   const { data: rates } = trpc.withdrawals.getExchangeRates.useQuery();
   const withdrawMutation = trpc.withdrawals.request.useMutation();
+  const validateAddressQuery = trpc.blockchain.validateAddress.useQuery;
+  const getExplorerUrlQuery = trpc.blockchain.getExplorerUrl.useQuery;
 
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState<'bitcoin' | 'ethereum' | 'usdc' | 'litecoin'>('bitcoin');
   const [walletAddress, setWalletAddress] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [addressValidation, setAddressValidation] = useState<{ valid: boolean; message: string } | null>(null);
 
   const balance = parseFloat(wallet?.balance || '0');
   const minWithdrawal = 5;
@@ -23,7 +26,33 @@ export default function WithdrawScreen() {
 
   const selectedCrypto = cryptos?.find(c => c.id === method);
   const exchangeRate = rates ? rates[method as keyof typeof rates] || 0 : 0;
-  const cryptoAmount = amount && exchangeRate ? (parseFloat(amount) / exchangeRate).toFixed(8) : '0';
+  const cryptoAmount = amount && exchangeRate ? (parseFloat(amount as any) / exchangeRate).toFixed(8) : '0';
+
+  const handleValidateAddress = async (address: string) => {
+    if (!address) {
+      setAddressValidation(null);
+      return;
+    }
+
+    try {
+      // Validate address using query
+      const result = await fetch('/api/trpc/blockchain.validateAddress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ method, address }),
+      }).then(r => r.json());
+
+      setAddressValidation({
+        valid: result.valid,
+        message: result.valid ? '✓ Valid address' : '✗ Invalid address',
+      });
+    } catch (error) {
+      setAddressValidation({
+        valid: false,
+        message: 'Unable to validate address',
+      });
+    }
+  };
 
   const handleWithdraw = async () => {
     if (!amount || !walletAddress) {
@@ -31,7 +60,12 @@ export default function WithdrawScreen() {
       return;
     }
 
-    const withdrawAmount = parseFloat(amount);
+    if (!addressValidation?.valid) {
+      Alert.alert('Error', 'Please enter a valid wallet address');
+      return;
+    }
+
+    const withdrawAmount = parseFloat(amount as any);
     if (withdrawAmount < minWithdrawal) {
       Alert.alert('Error', `Minimum withdrawal is $${minWithdrawal}`);
       return;
@@ -42,22 +76,9 @@ export default function WithdrawScreen() {
       return;
     }
 
-    // Validate wallet address format
-    const addressPatterns: Record<string, RegExp> = {
-      bitcoin: /^(1|3|bc1)[a-zA-HJ-NP-Z0-9]{25,62}$/,
-      ethereum: /^0x[a-fA-F0-9]{40}$/,
-      usdc: /^0x[a-fA-F0-9]{40}$/,
-      litecoin: /^[LM][a-zA-km-zA-HJ-NP-Z1-9]{26,33}$/,
-    };
-
-    if (!addressPatterns[method].test(walletAddress)) {
-      Alert.alert('Error', `Invalid ${method.toUpperCase()} wallet address`);
-      return;
-    }
-
     setIsSubmitting(true);
     try {
-      const amountNum = parseFloat(withdrawAmount as any);
+      const amountNum = parseFloat(amount as any);
       const amountStr = `${amountNum.toFixed(2)}`;
 
       await withdrawMutation.mutateAsync({
@@ -69,10 +90,28 @@ export default function WithdrawScreen() {
       Alert.alert('Success', `Withdrawal of ${cryptoAmount} ${method.toUpperCase()} initiated! Funds will arrive in 10-30 minutes.`);
       setAmount('');
       setWalletAddress('');
+      setAddressValidation(null);
     } catch (error) {
       Alert.alert('Error', 'Failed to process withdrawal');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleOpenExplorer = async (withdrawal: any) => {
+    if (!withdrawal.transactionId) return;
+
+    try {
+      // Get explorer URL
+      const result = await fetch('/api/trpc/blockchain.getExplorerUrl', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ method: withdrawal.method, transactionHash: withdrawal.transactionId }),
+      }).then(r => r.json());
+
+      await Linking.openURL(result.explorerUrl);
+    } catch (error) {
+      Alert.alert('Error', 'Unable to open explorer');
     }
   };
 
@@ -162,7 +201,12 @@ export default function WithdrawScreen() {
               placeholder={`Enter your ${method.toUpperCase()} wallet address`}
               placeholderTextColor="#687076"
               value={walletAddress}
-              onChangeText={setWalletAddress}
+              onChangeText={(text) => {
+                setWalletAddress(text);
+                if (text.length > 10) {
+                  handleValidateAddress(text);
+                }
+              }}
               className="bg-surface border border-border rounded-lg px-4 py-3 text-foreground text-sm"
               multiline
               numberOfLines={3}
@@ -173,15 +217,20 @@ export default function WithdrawScreen() {
               {method === 'usdc' && 'Ethereum address (0x...)'}
               {method === 'litecoin' && 'Starts with L or M'}
             </Text>
+            {addressValidation && (
+              <Text className={`text-xs font-bold mt-1 ${addressValidation.valid ? 'text-success' : 'text-error'}`}>
+                {addressValidation.message}
+              </Text>
+            )}
           </View>
 
           {/* Withdraw Button */}
           <Pressable
             onPress={handleWithdraw}
-            disabled={!canWithdraw || isSubmitting}
+            disabled={!canWithdraw || isSubmitting || !addressValidation?.valid}
             style={({ pressed }) => [
               { opacity: pressed ? 0.8 : 1 },
-              !canWithdraw && { opacity: 0.5 },
+              (!canWithdraw || !addressValidation?.valid) && { opacity: 0.5 },
             ]}
           >
             <FuturisticCard className="p-4 items-center" gradient="cyan">
@@ -190,10 +239,10 @@ export default function WithdrawScreen() {
               ) : (
                 <>
                   <Text className="text-lg font-bold text-background">
-                    {canWithdraw ? 'Withdraw Now' : 'Insufficient Balance'}
+                    {canWithdraw && addressValidation?.valid ? 'Withdraw Now' : 'Insufficient Balance'}
                   </Text>
                   <Text className="text-xs text-background/80 mt-1">
-                    Receive in 10-30 minutes
+                    Receive in 10-30 minutes via blockchain
                   </Text>
                 </>
               )}
@@ -204,7 +253,7 @@ export default function WithdrawScreen() {
           <FuturisticCard className="p-4 gap-2" gradient="purple">
             <Text className="text-xs font-bold text-foreground">⚡ Fast & Secure</Text>
             <Text className="text-xs text-muted leading-relaxed">
-              Withdrawals are processed directly to your blockchain wallet. No intermediaries, no delays. Funds arrive within 10-30 minutes.
+              Withdrawals are processed directly to your blockchain wallet via smart contracts. No intermediaries, no delays. Funds arrive within 10-30 minutes.
             </Text>
           </FuturisticCard>
         </View>
@@ -224,28 +273,42 @@ export default function WithdrawScreen() {
                 keyExtractor={(item) => item.id.toString()}
                 scrollEnabled={false}
                 renderItem={({ item }) => (
-                  <FuturisticCard className="p-4 gap-2 mb-2" gradient="pink">
-                    <View className="flex-row justify-between items-start">
-                      <View>
-                        <Text className="text-sm font-bold text-foreground">
-                          ${parseFloat(item.amount).toFixed(2)}
-                        </Text>
-                        <Text className="text-xs text-muted mt-1">{item.method}</Text>
+                  <Pressable
+                    onPress={() => item.transactionId && handleOpenExplorer(item)}
+                    disabled={!item.transactionId}
+                  >
+                    <FuturisticCard className="p-4 gap-2 mb-2" gradient="pink">
+                      <View className="flex-row justify-between items-start">
+                        <View className="flex-1">
+                          <Text className="text-sm font-bold text-foreground">
+                            ${parseFloat(item.amount).toFixed(2)}
+                          </Text>
+                          <Text className="text-xs text-muted mt-1">{item.method}</Text>
+                          {item.transactionId && (
+                            <Text className="text-xs text-primary mt-1 underline">
+                              View on Explorer →
+                            </Text>
+                          )}
+                        </View>
+                        <View className="items-end">
+                          <Text
+                            className={`text-xs font-bold ${
+                              item.status === 'completed'
+                                ? 'text-success'
+                                : item.status === 'failed'
+                                ? 'text-error'
+                                : 'text-warning'
+                            }`}
+                          >
+                            {item.status.toUpperCase()}
+                          </Text>
+                          <Text className="text-xs text-muted mt-1">
+                            {new Date(item.createdAt).toLocaleDateString()}
+                          </Text>
+                        </View>
                       </View>
-                      <View className="items-end">
-                        <Text className={`text-xs font-bold ${
-                          item.status === 'completed' ? 'text-success' :
-                          item.status === 'failed' ? 'text-error' :
-                          'text-warning'
-                        }`}>
-                          {item.status.toUpperCase()}
-                        </Text>
-                        <Text className="text-xs text-muted mt-1">
-                          {new Date(item.createdAt).toLocaleDateString()}
-                        </Text>
-                      </View>
-                    </View>
-                  </FuturisticCard>
+                    </FuturisticCard>
+                  </Pressable>
                 )}
               />
             )}
